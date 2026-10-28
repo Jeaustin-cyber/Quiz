@@ -16,67 +16,87 @@ class GrupoTest extends TestCase
     public function test_grupo_contiene_toda_su_informacion(): void
     {
         $curso = Curso::create([
-            'sigla' => 'IF6100',
-            'nombre_curso' => 'Análisis y Diseño de Sistemas',
-            'creditos' => 4,
+            'sigla' => fake()->unique()->bothify('IF####'),
+            'nombre_curso' => fake()->words(3, true),
+            'creditos' => fake()->numberBetween(1, 6),
         ]);
 
-        $docente1 = Docente::create([
-            'cod_empleado' => 1001,
-            'nombre_empleado' => 'Ana',
-            'apellidos_empleado' => 'Mora Rojas',
-        ]);
-        $docente2 = Docente::create([
-            'cod_empleado' => 1002,
-            'nombre_empleado' => 'Luis',
-            'apellidos_empleado' => 'Vargas Solano',
-        ]);
+        $docentes = collect(range(1, fake()->numberBetween(1, 2)))->map(
+            fn () => Docente::create([
+                'cod_empleado' => fake()->unique()->numberBetween(1000, 9999),
+                'nombre_empleado' => fake()->firstName(),
+                'apellidos_empleado' => fake()->lastName(),
+            ])
+        );
 
         $grupo = Grupo::create([
-            'numero_ciclo' => 2,
-            'ano' => 2026,
-            'numero_grupo' => 1,
-            'abierto' => true,
+            'numero_ciclo' => fake()->numberBetween(1, 3),
+            'ano' => fake()->numberBetween(2020, 2030),
+            'numero_grupo' => fake()->numberBetween(1, 10),
+            'abierto' => fake()->boolean(),
             'curso_id' => $curso->id,
         ]);
 
-        $grupo->docentes()->attach([$docente1->id, $docente2->id]);
+        $grupo->docentes()->attach($docentes->pluck('id'));
 
-        for ($i = 1; $i <= 15; $i++) {
+        // Mínimo 15 estudiantes, cada uno con su consejero y su nota
+        $notas = [];
+        $cantidad = fake()->numberBetween(15, 20);
+
+        for ($i = 0; $i < $cantidad; $i++) {
             $estudiante = Estudiante::create([
-                'carne' => 'C' . str_pad((string) $i, 5, '0', STR_PAD_LEFT),
-                'nombre' => "Estudiante$i",
-                'apellidos' => "Apellido$i",
-                'docente_id' => $docente1->id,
+                'carne' => fake()->unique()->numerify('C#####'),
+                'nombre' => fake()->firstName(),
+                'apellidos' => fake()->lastName(),
+                'docente_id' => $docentes->random()->id,
             ]);
 
-            $grupo->estudiantes()->attach($estudiante->id, ['nota' => 80.5]);
+            $notas[$estudiante->id] = fake()->randomFloat(2, 0, 100);
+            $grupo->estudiantes()->attach($estudiante->id, ['nota' => $notas[$estudiante->id]]);
         }
 
-        $grupo = Grupo::with(['curso', 'docentes', 'estudiantes.consejero'])
-            ->find($grupo->id);
+        // Los datos están realmente en la base de datos
+        $this->assertDatabaseHas('grupos', [
+            'id' => $grupo->id,
+            'curso_id' => $curso->id,
+            'numero_ciclo' => $grupo->numero_ciclo,
+            'ano' => $grupo->ano,
+            'numero_grupo' => $grupo->numero_grupo,
+        ]);
+        $this->assertDatabaseCount('docente_grupo', $docentes->count());
+        $this->assertDatabaseCount('estudiante_matriculados', $cantidad);
 
-        $this->assertSame(2, $grupo->numero_ciclo);
-        $this->assertSame(2026, $grupo->ano);
-        $this->assertSame(1, $grupo->numero_grupo);
-        $this->assertTrue($grupo->abierto);
+        // Se recarga el grupo desde la base, no se usa el objeto en memoria
+        $recargado = Grupo::with(['curso', 'docentes', 'estudiantes.consejero'])->find($grupo->id);
 
-        $this->assertSame('IF6100', $grupo->curso->sigla);
-        $this->assertSame('Análisis y Diseño de Sistemas', $grupo->curso->nombre_curso);
-        $this->assertSame(4, $grupo->curso->creditos);
+        // Atributos del grupo
+        $this->assertSame($grupo->numero_ciclo, $recargado->numero_ciclo);
+        $this->assertSame($grupo->ano, $recargado->ano);
+        $this->assertSame($grupo->numero_grupo, $recargado->numero_grupo);
+        $this->assertSame((bool) $grupo->abierto, $recargado->abierto);
 
-        $this->assertCount(2, $grupo->docentes);
-        $this->assertGreaterThanOrEqual(1, $grupo->docentes->count());
-        $this->assertLessThanOrEqual(2, $grupo->docentes->count());
-        $this->assertTrue($grupo->docentes->contains('cod_empleado', 1001));
-        $this->assertTrue($grupo->docentes->contains('cod_empleado', 1002));
+        // Curso: es el mismo registro que se asoció
+        $this->assertTrue($recargado->curso->is($curso));
 
-        $this->assertCount(15, $grupo->estudiantes);
-        $this->assertGreaterThanOrEqual(15, $grupo->estudiantes->count());
+        // Docentes: son exactamente los asociados, entre 1 y 2
+        $this->assertGreaterThanOrEqual(1, $recargado->docentes->count());
+        $this->assertLessThanOrEqual(2, $recargado->docentes->count());
+        $this->assertEqualsCanonicalizing(
+            $docentes->pluck('id')->all(),
+            $recargado->docentes->pluck('id')->all()
+        );
 
-        foreach ($grupo->estudiantes as $estudiante) {
-            $this->assertEquals(80.5, $estudiante->pivot->nota);
-            $this->assertSame('Ana', $estudiante->consejero->nombre_empleado);
+        // Estudiantes: son exactamente los matriculados, al menos 15
+        $this->assertGreaterThanOrEqual(15, $recargado->estudiantes->count());
+        $this->assertEqualsCanonicalizing(
+            array_keys($notas),
+            $recargado->estudiantes->pluck('id')->all()
+        );
+
+        foreach ($recargado->estudiantes as $estudiante) {
+            $this->assertEqualsWithDelta($notas[$estudiante->id], $estudiante->pivot->nota, 0.001);
+            $this->assertNotNull($estudiante->consejero);
+            $this->assertTrue($docentes->contains('id', $estudiante->consejero->id));
         }
     }
 }
