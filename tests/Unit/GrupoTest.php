@@ -48,10 +48,10 @@ class GrupoTest extends TestCase
                 'carne' => fake()->unique()->numerify('C#####'),
                 'nombre' => fake()->firstName(),
                 'apellidos' => fake()->lastName(),
-                'docente_id' => $docentes->random()->id,
+                'consejero_id' => $docentes->random()->id,
             ]);
 
-            $notas[$estudiante->id] = fake()->randomFloat(2, 0, 100);
+            $notas[$estudiante->id] = fake()->randomFloat(2, 0, 10);
             $grupo->estudiantes()->attach($estudiante->id, ['nota' => $notas[$estudiante->id]]);
         }
 
@@ -63,8 +63,8 @@ class GrupoTest extends TestCase
             'ano' => $grupo->ano,
             'numero_grupo' => $grupo->numero_grupo,
         ]);
-        $this->assertDatabaseCount('docente_grupo', $docentes->count());
-        $this->assertDatabaseCount('estudiante_matriculados', $cantidad);
+        $this->assertDatabaseCount('grupo_docente', $docentes->count());
+        $this->assertDatabaseCount('estudiantes_matriculados', $cantidad);
 
         // Se recarga el grupo desde la base, no se usa el objeto en memoria
         $recargado = Grupo::with(['curso', 'docentes', 'estudiantes.consejero'])->find($grupo->id);

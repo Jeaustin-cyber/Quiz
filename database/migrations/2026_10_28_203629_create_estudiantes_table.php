@@ -11,14 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::create('estudiantes', function (Blueprint $table) {
-    $table->id();
-    $table->string('carne')->unique();
-    $table->string('nombre');
-    $table->string('apellidos');
-    $table->foreignId('docente_id')->constrained('docentes'); 
-    $table->timestamps();
-});
+        Schema::create('estudiantes', function (Blueprint $table) {
+            $table->id();
+            $table->string('carne')->unique();
+            $table->string('nombre');
+            $table->string('apellidos');
+            $table->foreignId('consejero_id')->constrained('docentes');
+            $table->timestamps();
+        });
     }
 
     /**

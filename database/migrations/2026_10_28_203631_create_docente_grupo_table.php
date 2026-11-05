@@ -11,12 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('docente_grupo', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('docente_id')->constrained('docentes');
-    $table->foreignId('grupo_id')->constrained('grupos');
-    $table->timestamps();
-});
+        Schema::create('grupo_docente', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('grupo_id')->constrained('grupos');
+            $table->foreignId('docente_id')->constrained('docentes');
+            $table->timestamps();
+
+            $table->unique(['grupo_id', 'docente_id']);
+        });
     }
 
     /**
@@ -24,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('docente_grupo');
+        Schema::dropIfExists('grupo_docente');
     }
 };

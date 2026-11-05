@@ -11,13 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::create('estudiante_matriculados', function (Blueprint $table) {
-    $table->id();
-    $table->foreignId('grupo_id')->constrained('grupos');
-    $table->foreignId('estudiante_id')->constrained('estudiantes');
-    $table->float('nota')->nullable();
-    $table->timestamps();
-});
+        Schema::create('estudiantes_matriculados', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('grupo_id')->constrained('grupos');
+            $table->foreignId('estudiante_id')->constrained('estudiantes');
+            $table->decimal('nota', 4, 2)->nullable();
+            $table->timestamps();
+
+            $table->unique(['grupo_id', 'estudiante_id']);
+        });
     }
 
     /**
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('estudiante_matriculados');
+        Schema::dropIfExists('estudiantes_matriculados');
     }
 };
