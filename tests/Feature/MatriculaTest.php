@@ -6,11 +6,12 @@ use App\Models\Estudiante;
 use App\Models\EstudianteMatriculado;
 use App\Models\Grupo;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Tests\TestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(TestCase::class, RefreshDatabase::class);
+mutates(Grupo::class);
+uses(RefreshDatabase::class);
+
 
 function cursoIF6100(): Curso
 {
@@ -140,7 +141,8 @@ test('CP-04 un grupo rechaza un tercer docente', function () {
     $grupo->asignarDocente(docenteConCodigo(1002));
     $docente1003 = docenteConCodigo(1003);
 
-    expect(fn () => $grupo->asignarDocente($docente1003))->toThrow(DomainException::class);
+    expect(fn () => $grupo->asignarDocente($docente1003))
+        ->toThrow(DomainException::class, 'Un grupo no puede tener más de 2 docentes.');
 
     expect($grupo->docentes()->count())->toBe(2)
         ->and(DB::table('grupo_docente')->where('docente_id', $docente1003->id)->exists())->toBeFalse();
@@ -249,7 +251,7 @@ test('CP-12 rechaza notas menores que 0 o mayores que 10', function (int|float $
     $grupo->matricular($estudiante);
 
     expect(fn () => $grupo->registrarNota($estudiante, $notaInvalida))
-        ->toThrow(InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class, 'La nota debe estar entre 0 y 10.');
 
     expect(matriculaDe($grupo, $estudiante)->nota)->toBeNull();
 })->with([-1, 10.5]);
@@ -267,4 +269,31 @@ test('CP-13 un estudiante no se matricula dos veces en el mismo grupo', function
             ->where('estudiante_id', $estudiante->id)
             ->count()
     )->toBe(1);
+});
+
+test('CP-14 los bordes de la escala de notas son válidos', function (float $nota) {
+    $grupo = grupo01();
+    $estudiante = estudianteC12345(docenteConCodigo(1001));
+    $grupo->matricular($estudiante);
+
+    $grupo->registrarNota($estudiante, $nota);
+
+    expect(matriculaDe($grupo, $estudiante)->nota)->toBeFloat()->toBe($nota);
+})->with([0, 10]);
+
+test('CP-15 un grupo con exactamente 15 estudiantes y un docente se puede abrir', function () {
+    $grupo = grupo01();
+    $grupo->asignarDocente(docenteConCodigo(1001));
+    matricularEstudiantesGenerados($grupo, 15);
+
+    expect($grupo->puedeAbrirse())->toBeTrue()
+        ->and(fn () => $grupo->abrir())->not->toThrow(Throwable::class)
+        ->and($grupo->fresh()->abierto)->toBeTrue();
+});
+
+test('CP-16 no se permite registrar una nota a un estudiante no matriculado', function () {
+    $grupo = grupo01();
+    $estudiante = estudianteC12345(docenteConCodigo(1001));
+
+    expect(fn () => $grupo->registrarNota($estudiante, 7.5))->toThrow(DomainException::class);
 });
